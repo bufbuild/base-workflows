@@ -1,8 +1,9 @@
 name: PR Approval Bypass Notifier
 on:
   workflow_call:
-    SLACK_MERGE_WITHOUT_APPROVAL_WEBHOOK:
-      required: true
+    secrets:
+      SLACK_MERGE_WITHOUT_APPROVAL_WEBHOOK:
+        required: true
 permissions:
   pull-requests: read
 jobs:
