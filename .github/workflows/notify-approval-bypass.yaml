@@ -16,21 +16,21 @@ jobs:
           AUTH_HEADER: 'Authorization: token ${{ secrets.GITHUB_TOKEN }}'
           JSON_HEADER: 'Content-Type: application/json'
           REVIEWS_URL: 'https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews'
-          MAX_REVIEWS: 100
+          REVIEWS_PER_PAGE: 100
         run: |
-          TEMP=$(mktemp)
+          TEMP="$(mktemp -d)"
           for i in $(seq 1 100)
           do
-            curl -sSL -H "${JSON_HEADER}" -H "${AUTH_HEADER}" "${REVIEWS_URL}?per_page=${MAX_REVIEWS}&page=$i" > $TEMP/p$i.json
+            curl -sSL -H "${JSON_HEADER}" -H "${AUTH_HEADER}" "${REVIEWS_URL}?per_page=${REVIEWS_PER_PAGE}&page=$i" > "$TEMP/p$i.json"
             if [[ $i != 1 ]]
             then
-              jq -s '.[0] + .[1]' $TEMP/p$(expr $i - 1)merge.json $TEMP/p$i.json > $TEMP/p$(echo $i)merge.json
+              jq -s '.[0] + .[1]' "$TEMP/p$((i - 1))merge.json" "$TEMP/p$i.json" > "$TEMP/p${i}merge.json"
             else
-              cp p$i.json p$(echo $i)merge.json
+              cp "$TEMP/p$i.json" "$TEMP/p${i}merge.json"
             fi
-            if [[ $(cat p$i.json | jq length) != ${MAX_REVIEWS?} ]]; then break; fi
+            if [[ $(cat "$TEMP/p${i}.json" | jq length) != ${REVIEWS_PER_PAGE?} ]]; then break; fi
           done
-          cat p$(echo $i)merge.json |  jq -e '. | map({user: .user.login, state: .state})
+          cat "$TEMP/p${i}merge.json" |  jq -e '. | map({user: .user.login, state: .state})
                                                 | map(select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED"))
                                                 | reduce .[] as $x ({}; .[$x.user] = $x.state)
                                                 | to_entries | map(.value)
