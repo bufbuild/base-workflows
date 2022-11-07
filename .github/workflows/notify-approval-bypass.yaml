@@ -21,12 +21,12 @@ jobs:
           TEMP="$(mktemp -d)"
           for i in $(seq 1 100)
           do
-            curl -sSL -H "${JSON_HEADER}" -H "${AUTH_HEADER}" "${REVIEWS_URL}?per_page=${REVIEWS_PER_PAGE}&page=$i" > "$TEMP/p$i.json"
+            curl -sSL -H "${JSON_HEADER}" -H "${AUTH_HEADER}" "${REVIEWS_URL}?per_page=${REVIEWS_PER_PAGE}&page=$i" > "$TEMP/p${i}.json"
             if [[ $i != 1 ]]
             then
-              jq -s '.[0] + .[1]' "$TEMP/p$((i - 1))merge.json" "$TEMP/p$i.json" > "$TEMP/p${i}merge.json"
+              jq -s '.[0] + .[1]' "$TEMP/p$((i - 1))merge.json" "$TEMP/p${i}.json" > "$TEMP/p${i}merge.json"
             else
-              cp "$TEMP/p$i.json" "$TEMP/p${i}merge.json"
+              cp "$TEMP/p${i}.json" "$TEMP/p${i}merge.json"
             fi
             if [[ $(cat "$TEMP/p${i}.json" | jq length) != ${REVIEWS_PER_PAGE?} ]]; then break; fi
           done
