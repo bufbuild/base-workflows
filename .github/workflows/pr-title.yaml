@@ -22,7 +22,7 @@ jobs:
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           # https://regex101.com/r/I6oK5v/1
-          title-regex: "^[A-Z].*[^.?!,\-;:]$"
+          title-regex: "^[A-Z].*[^.?!,\\-;:]$"
           on-failed-regex-fail-action: true
           on-failed-regex-create-review: false
           on-failed-regex-request-changes: false
