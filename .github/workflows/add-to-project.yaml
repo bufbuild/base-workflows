@@ -1,0 +1,78 @@
+name: Add issues and PRs to project
+
+on:
+  workflow_call:
+
+jobs:
+  add-to-project:
+    name: Add issue to project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get GitHub app token
+        uses: actions/create-github-app-token@v1
+        id: app_token
+        with:
+          app-id: ${{ secrets.CONNECT_EXPORT_APP_ID }}
+          private-key: ${{ secrets.CONNECT_EXPORT_APP_KEY }}
+      - uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/orgs/bufbuild/projects/22
+          github-token: ${{ steps.app_token.outputs.token }}
+      - name: Get project id if status is done
+        if: ${{ github.event_name == 'issue_comment' }}
+        id: get_project_item_id
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          echo item_id=$(gh api graphql -f query='query {
+            repository(name: "${{ github.event.repository.name }}", owner: "${{ github.event.repository.owner.login }}") {
+              name
+              issue(number: ${{ github.event.issue.number }}) @include(if: ${{ github.event.issue.pull_request == null }}) {
+                projectItems(first: 100) {
+                  nodes {
+                    id
+                    fieldValueByName(name: "Status") {
+                      ... on ProjectV2ItemFieldSingleSelectValue {
+                        optionId
+                      }
+                    }
+                    project {
+                      number
+                    }
+                  }
+                }
+              }
+              pullRequest(number: ${{ github.event.issue.number }}) @include(if: ${{ github.event.issue.pull_request != null }}) {
+                projectItems(first: 100) {
+                  nodes {
+                    id
+                    fieldValueByName(name: "Status") {
+                      ... on ProjectV2ItemFieldSingleSelectValue {
+                        optionId
+                      }
+                    }
+                    project {
+                      number
+                    }
+                  }
+                }
+              }
+            }
+          }' | jq -r 'if .data.repository.issue != null then .data.repository.issue else .data.repository.pullRequest end | .projectItems.nodes  | .[] | select(.project.number==22 and .fieldValueByName.optionId == "98236657") | .id') >> $GITHUB_OUTPUT
+      - name: "Update status"
+        if: ${{ steps.get_project_item_id.outputs.item_id != '' }}
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          gh api graphql -f query='mutation {
+            updateProjectV2ItemFieldValue(
+              input: {
+                fieldId: "PVTSSF_lADOAzrm6s4AcQQdzgSPpTc"
+                itemId: "${{ steps.get_project_item_id.outputs.item_id }}"
+                projectId: "PVT_kwDOAzrm6s4AcQQd"
+                value: { singleSelectOptionId: "c3382ec9" }
+              }
+            ) {
+              clientMutationId
+            }
+          }'
