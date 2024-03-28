@@ -21,10 +21,10 @@ jobs:
       - uses: morrisoncole/pr-lint-action@327d08270eeda69f390c2073935506556987b9a1 # v1.7.0
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          # https://regex101.com/r/I6oK5v/1
-          title-regex: "^[A-Z].*[^.?!,\\-;:]$"
+          # https://regex101.com/r/pa7WU5/2
+          title-regex: "^[A-Z]\\w+[^s] .*[^.?!,\\-;:]$"
           on-failed-regex-fail-action: true
           on-failed-regex-create-review: false
           on-failed-regex-request-changes: false
-          on-failed-regex-comment: "PR titles must start with a capital letter and not end with punctuation."
+          on-failed-regex-comment: "PR titles must start with a capital letter, not end the first word in 's' (ideally the imperative, present tense!), and not end with punctuation."
           on-succeeded-regex-dismiss-review-comment: "Thanks for helping keep our PR titles consistent!"
