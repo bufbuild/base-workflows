@@ -21,8 +21,8 @@ jobs:
       - uses: morrisoncole/pr-lint-action@51f3cfabaf5d46f94e54524214e45685f0401b2a # v1.7.1
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          # https://regex101.com/r/gO04xq/1
-          title-regex: "^[A-Z]\\w*[^s] .*[^.?!,\\-;:]$"
+          # https://regex101.com/r/JcT3Bv/1
+          title-regex: "^[A-Z][\\w-]*[^s] .*[^.?!,\\-;:]$"
           on-failed-regex-fail-action: true
           on-failed-regex-create-review: false
           on-failed-regex-request-changes: false
