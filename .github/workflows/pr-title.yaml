@@ -26,5 +26,5 @@ jobs:
           on-failed-regex-fail-action: true
           on-failed-regex-create-review: false
           on-failed-regex-request-changes: false
-          on-failed-regex-comment: "PR titles must start with a capital letter, not end the first word in 's' (ideally the imperative, present tense!), and not end with punctuation."
+          on-failed-regex-comment: "PR titles must start with a capital letter, not end the first word in 's' (ideally the imperative, present tense!), and not end with punctuation. Do not use contractions such as 'don't' as the first word."
           on-succeeded-regex-dismiss-review-comment: "Thanks for helping keep our PR titles consistent!"
