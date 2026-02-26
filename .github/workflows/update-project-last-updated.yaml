@@ -1,0 +1,100 @@
+name: Update project last updated
+
+on:
+  workflow_call:
+
+jobs:
+  update-last-updated:
+    name: Update last updated
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get GitHub app token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: app_token
+        with:
+          app-id: ${{ secrets.BUFBUILD_EXPORT_APP_ID }}
+          private-key: ${{ secrets.BUFBUILD_EXPORT_APP_KEY }}
+      - name: Determine content number and type
+        id: content
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request && 'true' || '' }}
+        run: |
+          NUMBER=""
+          CONTENT_TYPE=""
+          case "${EVENT_NAME}" in
+            pull_request|pull_request_review)
+              NUMBER="${PR_NUMBER}"
+              CONTENT_TYPE="pullRequest"
+              ;;
+            issue_comment)
+              NUMBER="${ISSUE_NUMBER}"
+              if [[ -n "${IS_PR_COMMENT}" ]]; then
+                CONTENT_TYPE="pullRequest"
+              else
+                CONTENT_TYPE="issue"
+              fi
+              ;;
+            issues)
+              NUMBER="${ISSUE_NUMBER}"
+              CONTENT_TYPE="issue"
+              ;;
+          esac
+          if [[ -z "${NUMBER}" ]]; then
+            echo "Unsupported event: ${EVENT_NAME}, skipping"
+            exit 0
+          fi
+          echo "number=${NUMBER}" >> "${GITHUB_OUTPUT}"
+          echo "type=${CONTENT_TYPE}" >> "${GITHUB_OUTPUT}"
+      - name: Update last updated date
+        if: steps.content.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          CONTENT_TYPE: ${{ steps.content.outputs.type }}
+          CONTENT_NUMBER: ${{ steps.content.outputs.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          ITEM_ID=$(gh api graphql -f query='
+            query {
+              repository(
+                owner: "'"${REPO_OWNER}"'",
+                name: "'"${REPO_NAME}"'"
+              ) {
+                '"${CONTENT_TYPE}"'(number: '"${CONTENT_NUMBER}"') {
+                  projectItems(first: 100) {
+                    nodes {
+                      id
+                      project { number }
+                    }
+                  }
+                }
+              }
+            }' | jq -r '
+              [
+                .data.repository.'"${CONTENT_TYPE}"'
+                  .projectItems.nodes[]
+                | select(.project.number == 22)
+                | .id
+              ] | .[0] // empty')
+          if [[ -z "${ITEM_ID}" ]]; then
+            echo "Item not found on project, skipping"
+            exit 0
+          fi
+          TODAY=$(date -u +%Y-%m-%d)
+          gh api graphql -f query='
+            mutation {
+              updateProjectV2ItemFieldValue(
+                input: {
+                  projectId: "PVT_kwDOAzrm6s4AcQQd"
+                  itemId: "'"${ITEM_ID}"'"
+                  fieldId: "PVTF_lADOAzrm6s4AcQQdzg-YTKg"
+                  value: { date: "'"${TODAY}"'" }
+                }
+              ) {
+                clientMutationId
+              }
+            }'
+          echo "Updated Last Updated to ${TODAY} for item ${ITEM_ID}"
