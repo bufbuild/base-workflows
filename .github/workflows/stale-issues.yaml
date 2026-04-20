@@ -1,0 +1,148 @@
+name: Close stale issues
+
+on:
+  workflow_call:
+
+jobs:
+  stale:
+    name: Close stale issues
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get GitHub app token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: app_token
+        with:
+          app-id: ${{ secrets.BUFBUILD_EXPORT_APP_ID }}
+          private-key: ${{ secrets.BUFBUILD_EXPORT_APP_KEY }}
+      - name: Process stale issues
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          WARNING_BODY='<!-- stale-warning -->
+          This issue has been open for 30 days with no activity. It will be automatically closed in 7 days if there is no further activity. If this issue is still relevant, please leave a comment.'
+          CLOSE_BODY='<!-- stale-close -->
+          This issue has been automatically closed due to inactivity. If you believe this issue is still relevant, feel free to reopen it or open a new issue referencing this one.'
+
+          # Collect all Triage issues for this repo from the project.
+          ISSUES_FILE=$(mktemp)
+          CURSOR=""
+          HAS_NEXT="true"
+          while [[ "${HAS_NEXT}" == "true" ]]; do
+            if [[ -n "${CURSOR}" ]]; then
+              AFTER_CLAUSE=', after: "'"${CURSOR}"'"'
+            else
+              AFTER_CLAUSE=""
+            fi
+            RESULT=$(gh api graphql -f query='
+              query {
+                organization(login: "'"${REPO_OWNER}"'") {
+                  projectV2(number: 22) {
+                    items(first: 100'"${AFTER_CLAUSE}"') {
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                      nodes {
+                        fieldValueByName(name: "Status") {
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            optionId
+                          }
+                        }
+                        content {
+                          ... on Issue {
+                            number
+                            updatedAt
+                            state
+                            repository {
+                              name
+                              owner { login }
+                            }
+                            comments(last: 1) {
+                              nodes {
+                                body
+                                createdAt
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }')
+            HAS_NEXT=$(echo "${RESULT}" | jq -r \
+              '.data.organization.projectV2.items.pageInfo.hasNextPage')
+            CURSOR=$(echo "${RESULT}" | jq -r \
+              '.data.organization.projectV2.items.pageInfo.endCursor')
+            # Filter to open Triage issues in this repo.
+            echo "${RESULT}" | jq -c '
+              .data.organization.projectV2.items.nodes[]
+              | select(
+                  .fieldValueByName.optionId == "c3382ec9"
+                  and .content.number != null
+                  and .content.state == "OPEN"
+                  and .content.repository.name == "'"${REPO_NAME}"'"
+                  and .content.repository.owner.login == "'"${REPO_OWNER}"'"
+                )
+              | {
+                  number: .content.number,
+                  updatedAt: .content.updatedAt,
+                  lastCommentIsWarning: (
+                    (.content.comments.nodes[0].body // "")
+                    | contains("<!-- stale-warning -->")
+                  ),
+                  lastCommentAt: (
+                    .content.comments.nodes[0].createdAt // ""
+                  )
+                }' >> "${ISSUES_FILE}"
+          done
+
+          if [[ ! -s "${ISSUES_FILE}" ]]; then
+            echo "No Triage issues found for ${REPO_OWNER}/${REPO_NAME}"
+            rm -f "${ISSUES_FILE}"
+            exit 0
+          fi
+
+          NOW_EPOCH=$(date +%s)
+          while IFS= read -r item; do
+            number=$(echo "${item}" | jq -r '.number')
+            updated_at=$(echo "${item}" | jq -r '.updatedAt')
+            is_warning=$(echo "${item}" | jq -r '.lastCommentIsWarning')
+            comment_at=$(echo "${item}" | jq -r '.lastCommentAt')
+
+            if [[ "${is_warning}" == "true" && -n "${comment_at}" ]]; then
+              # Last comment is a stale warning. Close if the grace
+              # period has elapsed and no other activity occurred.
+              warning_epoch=$(date -d "${comment_at}" +%s)
+              days_since=$(( (NOW_EPOCH - warning_epoch) / 86400 ))
+              if [[ ${days_since} -ge 7 ]]; then
+                echo "Closing #${number} (warning ${days_since} days ago)"
+                gh api \
+                  "repos/${REPO_OWNER}/${REPO_NAME}/issues/${number}/comments" \
+                  -f body="${CLOSE_BODY}" \
+                  || echo "Failed to comment on #${number}"
+                gh api \
+                  "repos/${REPO_OWNER}/${REPO_NAME}/issues/${number}" \
+                  -X PATCH -f state=closed -f state_reason=not_planned \
+                  || echo "Failed to close #${number}"
+              else
+                echo "Issue #${number}: grace period (${days_since}/7 days)"
+              fi
+            else
+              # No stale warning yet. Warn if inactive for 30+ days.
+              updated_epoch=$(date -d "${updated_at}" +%s)
+              days_inactive=$(( (NOW_EPOCH - updated_epoch) / 86400 ))
+              if [[ ${days_inactive} -ge 30 ]]; then
+                echo "Warning #${number} (inactive ${days_inactive} days)"
+                gh api \
+                  "repos/${REPO_OWNER}/${REPO_NAME}/issues/${number}/comments" \
+                  -f body="${WARNING_BODY}" \
+                  || echo "Failed to warn on #${number}"
+              else
+                echo "Issue #${number}: active (${days_inactive} days)"
+              fi
+            fi
+          done < "${ISSUES_FILE}"
+          rm -f "${ISSUES_FILE}"
