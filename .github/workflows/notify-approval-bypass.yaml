@@ -8,6 +8,76 @@ permissions:
   pull-requests: read
 jobs:
   approval:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find merged pull request for commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_json="$(
+            gh api --paginate \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls?per_page=100" \
+            | jq -s 'add | map(select(.merged_at != null)) | sort_by(.merged_at) | last // empty'
+          )"
+
+          if [[ -z "${pr_json}" ]]; then
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+            echo "No merged pull request associated with ${GITHUB_SHA}; skipping approval check."
+            exit 0
+          fi
+
+          pr_number="$(jq -r '.number' <<<"${pr_json}")"
+          pr_url="$(jq -r '.html_url' <<<"${pr_json}")"
+
+          echo "found=true" >> "${GITHUB_OUTPUT}"
+          echo "number=${pr_number}" >> "${GITHUB_OUTPUT}"
+          echo "url=${pr_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check approval
+        id: approval
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          has_approval="$(
+            gh api --paginate \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews?per_page=100" \
+            | jq -s 'add
+                | map(select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED"))
+                | reduce .[] as $review ({}; .[$review.user.login] = $review.state)
+                | [.[]] as $latest_states
+                | (($latest_states | index("APPROVED")) != null and (($latest_states | index("CHANGES_REQUESTED")) == null))'
+          )"
+
+          echo "approved=${has_approval}" >> "${GITHUB_OUTPUT}"
+          if [[ "${has_approval}" == "true" ]]; then
+            echo "Pull request ${PR_URL} had an active approval."
+          else
+            echo "Pull request ${PR_URL} was merged without an active approval."
+          fi
+
+      - name: Slack Notification
+        if: ${{ steps.approval.outputs.approved == 'false' }}
+        env:
+          PR_URL: ${{ steps.pr.outputs.url }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_MERGE_WITHOUT_APPROVAL_WEBHOOK }}
+        run: |
+          jq --null-input --arg url "${PR_URL}" '{ text: "Oh no! The following PR was merged without approval: \($url)" }' \
+          | curl -sSL -X POST -H 'Content-Type: application/json' -d @- "${SLACK_WEBHOOK}"
+
+      - name: Fail If No Approval
+        if: ${{ steps.approval.outputs.approved == 'false' }}
+        run: exit 1
+
+  # TODO: Remove after all repos move from pull_request event to push event.
+  approval-pr:
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Fail If No Approval
