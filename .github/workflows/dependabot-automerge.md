@@ -33,7 +33,7 @@ on:
     types: [completed]
     branches: ["dependabot/**"]
   schedule:
-    - cron: "0 14 * * 1-5" # 14:00 UTC weekdays (9am EST / 10am EDT)
+    - cron: "0 13 * * *" # 13:00 UTC (8am EST / 9am EDT)
   workflow_dispatch:
 permissions:
   contents: write
