@@ -21,6 +21,7 @@ on:
         required: true
       DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY:
         required: true
+permissions: {} # GITHUB_TOKEN is unused; everything runs on the app token.
 jobs:
   # Classifies each Dependabot PR with fetch-metadata and records the
   # verdict as the label. Re-runs on every Dependabot push, so a PR that
@@ -28,25 +29,36 @@ jobs:
   # its label and any previously armed auto-merge.
   mark:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # required to toggle auto-merge
-      pull-requests: write # required to add/remove PR labels
-      issues: write # required to create repo label
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.actor == 'dependabot[bot]'
     steps:
+      # Enabling auto-merge must use an app token, not GITHUB_TOKEN,
+      # so that CI runs post-merge.
+      # For simplicity, everything uses this token, instead of some steps
+      # using GITHUB_TOKEN
+      - name: Create App Token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write # required to toggle auto-merge
+          permission-pull-requests: write # required to label and approve PRs
+          permission-issues: write # required to create repo label
       - name: Fetch Dependabot Metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
       - name: Label Eligible PR
         id: label
         if: >-
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           REPO: ${{ github.repository }}
         run: |
@@ -57,22 +69,11 @@ jobs:
           steps.metadata.outputs.update-type != 'version-update:semver-patch' &&
           steps.metadata.outputs.update-type != 'version-update:semver-minor'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr edit "${PR_URL}" --remove-label "automerge: eligible" || true
           gh pr merge --disable-auto "${PR_URL}" || true
-      # Enabling auto-merge must use an app token, not GITHUB_TOKEN,
-      # so that CI runs post-merge.
-      - name: Create App Token
-        id: app-token
-        if: inputs.github-auto-merge && steps.label.outcome == 'success'
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
-          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
-          permission-contents: write # required to arm auto-merge
-          permission-pull-requests: write # required to approve PRs
       - name: Enable Auto-Merge
         if: inputs.github-auto-merge && steps.label.outcome == 'success'
         env:
@@ -86,7 +87,6 @@ jobs:
   # workflow_dispatch) live in the caller stub.
   sweep:
     runs-on: ubuntu-latest
-    permissions: {} # GITHUB_TOKEN is unused; everything runs on the app token.
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
