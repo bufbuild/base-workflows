@@ -21,10 +21,6 @@ on:
         required: true
       DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY:
         required: true
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
 jobs:
   # Classifies each Dependabot PR with fetch-metadata and records the
   # verdict as the label. Re-runs on every Dependabot push, so a PR that
