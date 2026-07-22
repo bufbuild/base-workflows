@@ -71,6 +71,8 @@ jobs:
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - name: Enable Auto-Merge
         if: inputs.github-auto-merge && steps.label.outcome == 'success'
         env:
@@ -102,6 +104,8 @@ jobs:
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - name: Merge Labeled Dependabot PRs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
