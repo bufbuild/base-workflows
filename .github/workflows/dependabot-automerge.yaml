@@ -106,6 +106,8 @@ jobs:
           private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-checks: read
+          permission-statuses: read
       - name: Merge Labeled Dependabot PRs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
