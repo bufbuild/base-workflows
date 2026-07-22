@@ -28,6 +28,10 @@ jobs:
   # its label and any previously armed auto-merge.
   mark:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to toggle auto-merge
+      pull-requests: write # required to add/remove PR labels
+      issues: write # required to create repo label
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
@@ -67,8 +71,8 @@ jobs:
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
+          permission-contents: write # required to arm auto-merge
+          permission-pull-requests: write # required to approve PRs
       - name: Enable Auto-Merge
         if: inputs.github-auto-merge && steps.label.outcome == 'success'
         env:
@@ -82,6 +86,7 @@ jobs:
   # workflow_dispatch) live in the caller stub.
   sweep:
     runs-on: ubuntu-latest
+    permissions: {} # GITHUB_TOKEN is unused; everything runs on the app token.
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
@@ -100,10 +105,10 @@ jobs:
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          permission-checks: read
-          permission-statuses: read
+          permission-contents: write # required to merge PRs
+          permission-pull-requests: write # required to approve PRs
+          permission-checks: read # required to read check results
+          permission-statuses: read # required to read commit statuses
       - name: Merge Labeled Dependabot PRs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
