@@ -18,7 +18,9 @@ permissions:
 jobs:
   automerge:
     uses: bufbuild/base-workflows/.github/workflows/dependabot-automerge.yaml@main
-    secrets: inherit
+    secrets:
+      DEPENDENCY_AUTOMERGE_APP_ID: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
+      DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
     with:
       github-auto-merge: true
 ```
@@ -43,7 +45,9 @@ permissions:
 jobs:
   automerge:
     uses: bufbuild/base-workflows/.github/workflows/dependabot-automerge.yaml@main
-    secrets: inherit
+    secrets:
+      DEPENDENCY_AUTOMERGE_APP_ID: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
+      DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
     with:
       github-auto-merge: false
 ```
@@ -128,6 +132,6 @@ workflow's approval, that's why.
 
 ## Secrets
 
-`secrets: inherit` is required because approvals and merges are performed with a GitHub App token minted from the `DEPENDENCY_AUTOMERGE_APP_ID` and `DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY` org secrets rather than `GITHUB_TOKEN`. This is necessary because events created with the default `GITHUB_TOKEN` never trigger other workflows, so merging with it would silently skip CI on the default branch after the merge. Reusable workflows don't see org secrets unless the caller passes them through. If the token minting step fails with missing credentials, the caller is missing `secrets: inherit`.
+The caller must pass the `DEPENDENCY_AUTOMERGE_APP_ID` and `DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY` org secrets through explicitly, as in the examples above. Approvals and merges are performed with a GitHub App token minted from them rather than `GITHUB_TOKEN`. This is necessary because events created with the default `GITHUB_TOKEN` never trigger other workflows, so merging with it would silently skip CI on the default branch after the merge. Reusable workflows don't see org secrets unless the caller passes them through. Both secrets are declared `required`, so a caller that omits them fails immediately at workflow validation rather than at the token minting step.
 
 The two jobs resolve secrets from different stores, so the app ID and key must be registered as both org **Actions secrets** and org **Dependabot secrets**, under the same names. The mark job runs on Dependabot-triggered `pull_request` events, which only see Dependabot secrets ([GitHub Actions secrets are not available](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-on-actions) in those runs). The sweep job runs on `workflow_run`, `schedule`, and `workflow_dispatch` events, which see regular Actions secrets. Missing either store breaks one of the two merge paths.
