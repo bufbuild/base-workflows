@@ -18,6 +18,7 @@ permissions:
 jobs:
   automerge:
     uses: bufbuild/base-workflows/.github/workflows/dependabot-automerge.yaml@main
+    secrets: inherit
     with:
       github-auto-merge: true
 ```
@@ -42,6 +43,7 @@ permissions:
 jobs:
   automerge:
     uses: bufbuild/base-workflows/.github/workflows/dependabot-automerge.yaml@main
+    secrets: inherit
     with:
       github-auto-merge: false
 ```
@@ -123,3 +125,7 @@ workflow's approval, that's why.
 > merges eligible PRs immediately, without waiting for any checks. Only
 > set it to `true` once the branch-protection setup ("required status
 > checks" + "Allow auto-merge") is done.
+
+## Secrets
+
+`secrets: inherit` is required because approvals and merges are performed with a GitHub App token minted from the `DEPENDENCY_AUTOMERGE_APP_ID` and `DEPENDENCY_AUTOMERGE_APP_KEY` org secrets rather than `GITHUB_TOKEN`. This is necessary because events created with the default `GITHUB_TOKEN` never trigger other workflows, so merging with it would silently skip CI on the default branch after the merge. Reusable workflows don't see org secrets unless the caller passes them through. If the token minting step fails with missing credentials, the caller is missing `secrets: inherit`.

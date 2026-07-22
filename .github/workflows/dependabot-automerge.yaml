@@ -57,10 +57,19 @@ jobs:
         run: |
           gh pr edit "${PR_URL}" --remove-label "automerge: eligible" || true
           gh pr merge --disable-auto "${PR_URL}" || true
+      # Enabling auto-merge must use an app token, not GITHUB_TOKEN,
+      # so that CI runs post-merge.
+      - name: Create App Token
+        id: app-token
+        if: inputs.github-auto-merge && steps.label.outcome == 'success'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_KEY }}
       - name: Enable Auto-Merge
         if: inputs.github-auto-merge && steps.label.outcome == 'success'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr review --approve "${PR_URL}"
@@ -80,9 +89,17 @@ jobs:
       group: dependabot-automerge-sweep
       cancel-in-progress: false
     steps:
+      # Merging must use an app token, not GITHUB_TOKEN,
+      # so that CI runs post-merge.
+      - name: Create App Token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_KEY }}
       - name: Merge Labeled Dependabot PRs
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
         run: |
           gh pr list --repo "${REPO}" --author 'app/dependabot' \
