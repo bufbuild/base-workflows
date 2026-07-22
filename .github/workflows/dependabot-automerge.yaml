@@ -65,7 +65,7 @@ jobs:
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
-          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_KEY }}
+          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
       - name: Enable Auto-Merge
         if: inputs.github-auto-merge && steps.label.outcome == 'success'
         env:
@@ -96,7 +96,7 @@ jobs:
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
           app-id: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_ID }}
-          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_KEY }}
+          private-key: ${{ secrets.DEPENDENCY_AUTOMERGE_APP_PRIVATE_KEY }}
       - name: Merge Labeled Dependabot PRs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
