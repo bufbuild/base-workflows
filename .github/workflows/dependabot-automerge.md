@@ -29,7 +29,11 @@ name: dependabot-automerge
 on:
   pull_request:
   workflow_run:
-    workflows: ["CI"]
+    # Name of workflows whose jobs run on Dependabot PRs.
+    # Each successful completion on a dependabot/** branch wakes the sweep.
+    # The cron below is the backstop.
+    workflows:
+      - "CI"
     types: [completed]
     branches: ["dependabot/**"]
   schedule:
@@ -46,10 +50,11 @@ jobs:
       github-auto-merge: false
 ```
 
-`workflows` is a list of your CI workflows, matched by their `name:` —
-the checks that must complete before it's considered safe to auto-merge.
-A name that matches nothing is a silently dead trigger; the cron backstop
-still works.
+To kick off the process of labeling existing PRs for auto-merge you can run this one-liner that will rebase all Dependabot PRs:
+
+```sh
+gh pr list --author "app/dependabot" --state open --json number -q '.[].number' | xargs -I{} gh pr comment {} --body "@dependabot rebase"
+```
 
 ## Architecture
 
