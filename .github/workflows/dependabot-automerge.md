@@ -9,6 +9,7 @@ Copy one of these into `.github/workflows/dependabot-automerge.yaml`.
 For repositories **with** required status checks:
 
 ```yaml
+# Automatically merge Dependabot PRs that pass CI and aren't major version bumps.
 name: dependabot-automerge
 on: pull_request
 permissions: {}
@@ -25,6 +26,7 @@ jobs:
 For repositories **without** required status checks:
 
 ```yaml
+# Automatically merge Dependabot PRs that pass CI and aren't major version bumps.
 name: dependabot-automerge
 on:
   pull_request:
